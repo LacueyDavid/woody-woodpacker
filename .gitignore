@@ -1,3 +1,6 @@
+# Program name
+woody_woodpacker
+
 # Prerequisites
 *.d
 
@@ -53,3 +56,9 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# cache
+.cache
+
+# json
+compile_commands.json
