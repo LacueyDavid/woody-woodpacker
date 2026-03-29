@@ -12,8 +12,8 @@ void profile_chacha_20_test() {
   printf("Description: Validates macro expansion for Key/IV sizes.\n");
   printf("====================================================\n\n");
 
-  printf("TEST CIPHER: %s\n", ECRYPT_NAME);
-  printf("Profil: %s\n\n", ECRYPT_PROFILE);
+  printf("TEST CIPHER: %s\n", CHACHA20_NAME);
+  printf("Profil: %s\n\n", CHACHA20_PROFILE);
 
   printf("[Design] Key Injection:\n");
   printf("-> Using a 'No Key Schedule' design to prevent cache-timing "
@@ -23,8 +23,8 @@ void profile_chacha_20_test() {
   printf("-> Supports 256-bit native security or 128-bit via internal "
          "duplication.\n\n");
   printf("[key] Verification supported size:\n");
-  for (i = 0; ECRYPT_KEYSIZE(i) <= ECRYPT_MAXKEYSIZE; ++i) {
-    keysize = ECRYPT_KEYSIZE(i);
+  for (i = 0; CHACHA20_KEYSIZE(i) <= CHACHA20_MAXKEYSIZE; ++i) {
+    keysize = CHACHA20_KEYSIZE(i);
     printf("-> Index %d: %d bits (%d octets)\n", i, keysize, keysize / 8);
   }
   printf("\n");
@@ -40,7 +40,7 @@ void profile_chacha_20_test() {
 }
 
 void chacha20_test() {
-    ECRYPT_ctx ctx;
+    chacha20_ctx ctx;
     u8 key[32] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
                   0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
                   0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
@@ -67,18 +67,18 @@ void chacha20_test() {
     printf("Original:  %s\n", original_text);
 
     // --- ENCRYPTION ---
-    ECRYPT_keysetup(&ctx, key, 256);
-    ECRYPT_ivsetup(&ctx, iv); // Reset counter + Set IV
-    ECRYPT_encrypt_bytes(&ctx, (u8*)original_text, ciphertext, len);
+    chacha20_keysetup(&ctx, key, 256);
+    chacha20_ivsetup(&ctx, iv); // Reset counter + Set IV
+    chacha20_encrypt_bytes(&ctx, (u8*)original_text, ciphertext, len);
 
     printf("Ciphered: ");
     for (u32 i = 0; i < len; i++) printf("%02x ", ciphertext[i]);
     printf("\n");
 
-    // --- DECRYPTION ---
+    // --- Dchacha20ION ---
     // VERY IMPORTANT: reset context (counter to 0) to decrypt
-    ECRYPT_ivsetup(&ctx, iv); 
-    ECRYPT_decrypt_bytes(&ctx, ciphertext, decrypted, len);
+    chacha20_ivsetup(&ctx, iv); 
+    chacha20_decrypt_bytes(&ctx, ciphertext, decrypted, len);
     decrypted[len] = '\0';
 
     printf("Decrypted: %s\n", decrypted);
@@ -93,13 +93,13 @@ void chacha20_test() {
     free(plaintext);
     free(ciphertext);
     free(decrypted);
-    printf("-------------------------------------\n");
+    printf("\n-------------------------------------\n");
 }
 
 int main(void) {
 
   profile_chacha_20_test();
-  printf("====================================================\n\n");
+  printf("\n====================================================\n\n");
   chacha20_test();
 
   return 0;

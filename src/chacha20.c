@@ -5,7 +5,7 @@ static const u8 sigma[16] = {'e', 'x', 'p', 'a', 'n', 'd', ' ', '3',
                              '2', '-', 'b', 'y', 't', 'e', ' ', 'k'};
 static const u8 tau[16] = {'e', 'x', 'p', 'a', 'n', 'd', ' ', '1',
                            '6', '-', 'b', 'y', 't', 'e', ' ', 'k'};
-void ECRYPT_keysetup(ECRYPT_ctx *context, const u8 *key, u32 key_bits){
+void chacha20_keysetup(chacha20_ctx *context, const u8 *key, u32 key_bits){
   const u8 *selected_constants = sigma;
   const u8 *second_half = key + 16;
 
@@ -36,7 +36,7 @@ void ECRYPT_keysetup(ECRYPT_ctx *context, const u8 *key, u32 key_bits){
   context->state[3] = U8TO32_LITTLE(selected_constants + 12);
 }
 
-void ECRYPT_ivsetup(ECRYPT_ctx *context, const u8 *iv) {
+void chacha20_ivsetup(chacha20_ctx *context, const u8 *iv) {
   // RFC 8439 layout:
   // state[12] = 32-bit block counter
   // state[13..15] = 96-bit nonce
@@ -73,7 +73,7 @@ static void chacha20_block(u8 output[64], const u32 state[16]) {
     U32TO8_LITTLE(output + 4 * i, x[i]);
 }
 
-void ECRYPT_encrypt_bytes(ECRYPT_ctx *context, const u8 *message, u8 *cipher,
+void chacha20_encrypt_bytes(chacha20_ctx *context, const u8 *message, u8 *cipher,
                           u32 bytes) {
   u8 keystream[64];
   u32 i;
@@ -105,13 +105,13 @@ void ECRYPT_encrypt_bytes(ECRYPT_ctx *context, const u8 *message, u8 *cipher,
   }
 }
 
-void ECRYPT_decrypt_bytes(ECRYPT_ctx *context, const u8 *cipher, u8 *message, u32 bytes)
+void chacha20_decrypt_bytes(chacha20_ctx *context, const u8 *cipher, u8 *message, u32 bytes)
 {
   // ChaCha20 decryption is identical to encryption (XOR stream cipher).
-  ECRYPT_encrypt_bytes(context, cipher, message, bytes);
+  chacha20_encrypt_bytes(context, cipher, message, bytes);
 }
 
-void ECRYPT_keystream_bytes(ECRYPT_ctx *context, u8 *stream, u32 bytes)
+void chacha20_keystream_bytes(chacha20_ctx *context, u8 *stream, u32 bytes)
 {
   u32 i;
 
@@ -119,5 +119,5 @@ void ECRYPT_keystream_bytes(ECRYPT_ctx *context, u8 *stream, u32 bytes)
     stream[i] = 0;
   }
 
-  ECRYPT_encrypt_bytes(context, stream, stream, bytes);
+  chacha20_encrypt_bytes(context, stream, stream, bytes);
 }

@@ -1,5 +1,5 @@
-#ifndef ECRYPT_SYNC_H
-#define ECRYPT_SYNC_H
+#ifndef CHACHA20_SYNC_H
+#define CHACHA20_SYNC_H
 
 #include <stdint.h>
 
@@ -39,30 +39,30 @@ typedef uint8_t u8;
 
 // ------------------- Profile -----------------------//
 
-#define ECRYPT_NAME "ChaCha20"
-#define ECRYPT_PROFILE "Software"
+#define CHACHA20_NAME "ChaCha20"
+#define CHACHA20_PROFILE "Software"
 
-#define ECRYPT_MAXKEYSIZE 256
-#define ECRYPT_KEYSIZE(i) (128 + (i) * 128)
+#define CHACHA20_MAXKEYSIZE 256
+#define CHACHA20_KEYSIZE(i) (128 + (i) * 128)
 
 //IV stand for initialisation vector
-#define ECRYPT_MAXIVSIZE 96
+#define CHACHA20_MAXIVSIZE 96
 // RFC 8439 profile: only 96-bit IV is supported.
-// The macro shape keeps compatibility with common ECRYPT-style loops.
-#define ECRYPT_IVSIZE(i) (96 + (i) * 96)
+// The macro shape keeps compatibility with common CHACHA20-style loops.
+#define CHACHA20_IVSIZE(i) (96 + (i) * 96)
 
-// Structure of the ECRYPT context
+// Structure of the chacha20 context
 typedef struct {
   u32 state[16];
-} ECRYPT_ctx;
+} chacha20_ctx;
 
 // ------------------- FUNCTIONS -----------------------//
 
-void ECRYPT_ivsetup(ECRYPT_ctx *context, const u8 *iv);
-void ECRYPT_keysetup(ECRYPT_ctx *context, const u8 *key, u32 key_bits);
-void ECRYPT_keystream_bytes(ECRYPT_ctx *context, u8 *stream, u32 bytes);
-void ECRYPT_decrypt_bytes(ECRYPT_ctx *context, const u8 *cipher, u8 *message, u32 bytes);
-void ECRYPT_encrypt_bytes(ECRYPT_ctx *context, const u8 *message, u8 *cipher,
+void chacha20_ivsetup(chacha20_ctx *context, const u8 *iv);
+void chacha20_keysetup(chacha20_ctx *context, const u8 *key, u32 key_bits);
+void chacha20_keystream_bytes(chacha20_ctx *context, u8 *stream, u32 bytes);
+void chacha20_decrypt_bytes(chacha20_ctx *context, const u8 *cipher, u8 *message, u32 bytes);
+void chacha20_encrypt_bytes(chacha20_ctx *context, const u8 *message, u8 *cipher,
                           u32 bytes);
 
 #endif
