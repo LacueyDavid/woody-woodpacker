@@ -1,40 +1,123 @@
-#include <stdio.h>
-#include <stdint.h>
 #include "ecrypt_sync.h"
+#include <stdint.h>
 
-// we are going to use macro for performances
-// --------------------- MACRO UTILS ------------------- //
+static const u8 sigma[16] = {'e', 'x', 'p', 'a', 'n', 'd', ' ', '3',
+                             '2', '-', 'b', 'y', 't', 'e', ' ', 'k'};
+static const u8 tau[16] = {'e', 'x', 'p', 'a', 'n', 'd', ' ', '1',
+                           '6', '-', 'b', 'y', 't', 'e', ' ', 'k'};
+void ECRYPT_keysetup(ECRYPT_ctx *context, const u8 *key, u32 key_bits){
+  const u8 *selected_constants = sigma;
+  const u8 *second_half = key + 16;
 
-// macro for rotate 32 bits left
-// Be carefull, v has to be a unsigned int32! (uint32) only!
-#define ROTL32(v,n) (((v) << (n)) | (v >> (32 - (n))))
+  // Load the first 16 key bytes into state words 4..7.
+  context->state[4] = U8TO32_LITTLE(key + 0);
+  context->state[5] = U8TO32_LITTLE(key + 4);
+  context->state[6] = U8TO32_LITTLE(key + 8);
+  context->state[7] = U8TO32_LITTLE(key + 12);
 
-// take 4 octets in the memory to create a u32 (for the reading)
-#define U8TO32_LITTLE(p) \
-    (((uint32_t)((p)[0])) | ((uint32_t)((p)[1]) << 8) | \
-     ((uint32_t)((p)[2]) << 16) | ((uint32_t)((p)[3]) << 24))
-// 
-// take a u32 and cut it in 4 oct
-#define U32TO8_LITTLE(p, v) \
-    do { \
-        (p)[0] = (uint8_t)((v) & 0xff); \
-        (p)[1] = (uint8_t)(((v) >> 8) & 0xff); \
-        (p)[2] = (uint8_t)(((v) >> 16) & 0xff); \
-        (p)[3] = (uint8_t)(((v) >> 24) & 0xff); \
-    } while (0)ets
+  // Accept 128-bit and 256-bit keys. Any other value defaults to 256-bit mode.
+  if (key_bits == 256) {
+    selected_constants = sigma;
+  } else if (key_bits == 128) {
+    selected_constants = tau;
+    second_half = key;
+  }
 
-// - mathematics found by Daniel J. Bernstein, which create chacha20 logic.
-// - 16,12,8 and 7 are numbers optimised to maximise the diffusion.
-// - here its ARX (add, rotate, XOR) but its (add, XOR, rotate) here.
-#define QUARTERROUND(a, b, c, d) \
-    a += b; d ^= a; d = ROTL32(d, 16); \
-    c += d; b ^= c; b = ROTL32(b, 12); \
-    a += b; d ^= a; d = ROTL32(d, 8);  \
-    c += d; b ^= c; b = ROTL32(b, 7);
+  // Load key bytes into state words 8..11.
+  context->state[8] = U8TO32_LITTLE(second_half + 0);
+  context->state[9] = U8TO32_LITTLE(second_half + 4);
+  context->state[10] = U8TO32_LITTLE(second_half + 8);
+  context->state[11] = U8TO32_LITTLE(second_half + 12);
 
-void chacha20(){
-  uint32_t a = 0b11110000;
-  printf("%b\n",a);
-  a = ROTL32(a,16);
-  printf("%b\n",a);
+  // Load constants into state words 0..3.
+  context->state[0] = U8TO32_LITTLE(selected_constants + 0);
+  context->state[1] = U8TO32_LITTLE(selected_constants + 4);
+  context->state[2] = U8TO32_LITTLE(selected_constants + 8);
+  context->state[3] = U8TO32_LITTLE(selected_constants + 12);
+}
+
+void ECRYPT_ivsetup(ECRYPT_ctx *context, const u8 *iv) {
+  // RFC 8439 layout:
+  // state[12] = 32-bit block counter
+  // state[13..15] = 96-bit nonce
+  context->state[12] = 0;
+  context->state[13] = U8TO32_LITTLE(iv + 0);
+  context->state[14] = U8TO32_LITTLE(iv + 4);
+  context->state[15] = U8TO32_LITTLE(iv + 8);
+}
+
+static void chacha20_block(u8 output[64], const u32 state[16]) {
+  u32 x[16];
+  int i;
+
+  for (i = 0; i < 16; ++i)
+    x[i] = state[i];
+
+  // 20 rounds: 10 column-round + diagonal-round pairs.
+  for (i = 20; i > 0; i -= 2) {
+    QUARTERROUND(0, 4, 8, 12)
+    QUARTERROUND(1, 5, 9, 13)
+    QUARTERROUND(2, 6, 10, 14)
+    QUARTERROUND(3, 7, 11, 15)
+
+    QUARTERROUND(0, 5, 10, 15)
+    QUARTERROUND(1, 6, 11, 12)
+    QUARTERROUND(2, 7, 8, 13)
+    QUARTERROUND(3, 4, 9, 14)
+  }
+
+  for (i = 0; i < 16; ++i)
+    x[i] = PLUS(x[i], state[i]);
+
+  for (i = 0; i < 16; ++i)
+    U32TO8_LITTLE(output + 4 * i, x[i]);
+}
+
+void ECRYPT_encrypt_bytes(ECRYPT_ctx *context, const u8 *message, u8 *cipher,
+                          u32 bytes) {
+  u8 keystream[64];
+  u32 i;
+
+  if (!bytes)
+    return;
+
+  for (;;) {
+    chacha20_block(keystream, context->state);
+
+    // RFC 8439 uses a 32-bit block counter at state[12].
+    // Callers must not exceed 2^32 blocks (256 GB) for a single key+nonce.
+    context->state[12] = PLUSONE(context->state[12]);
+
+    if (bytes <= 64) {
+      for (i = 0; i < bytes; ++i) {
+        cipher[i] = message[i] ^ keystream[i];
+      }
+      return;
+    }
+
+    for (i = 0; i < 64; ++i) {
+      cipher[i] = message[i] ^ keystream[i];
+    }
+
+    bytes -= 64;
+    cipher += 64;
+    message += 64;
+  }
+}
+
+void ECRYPT_decrypt_bytes(ECRYPT_ctx *context, const u8 *cipher, u8 *message, u32 bytes)
+{
+  // ChaCha20 decryption is identical to encryption (XOR stream cipher).
+  ECRYPT_encrypt_bytes(context, cipher, message, bytes);
+}
+
+void ECRYPT_keystream_bytes(ECRYPT_ctx *context, u8 *stream, u32 bytes)
+{
+  u32 i;
+
+  for (i = 0; i < bytes; ++i) {
+    stream[i] = 0;
+  }
+
+  ECRYPT_encrypt_bytes(context, stream, stream, bytes);
 }
