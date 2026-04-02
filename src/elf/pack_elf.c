@@ -1,4 +1,4 @@
-#include "packer.h"
+#include "woody.h"
 #include <stdio.h>
 #include <elf.h>
 #include <stdint.h>
@@ -6,18 +6,14 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
-
+#include <stdio.h>
 
 int handle_elf64(s_packer_ctx *ctx);
-int write_woody(s_packer_ctx *ctx);
 
 int pack_elf(s_packer_ctx *ctx)
 {
-	(void)ctx;
-	fprintf(stderr, "Ready to pack an elf!\n");
 	handle_elf64(ctx);
-	fprintf(stderr, "Ready to pack execute!\n");
-    write_woody(ctx);
+    create_woody(ctx);
 	return (0);
 }
 
@@ -33,91 +29,96 @@ char payload[] =
 #include <stdlib.h>
 #include <unistd.h>
 
-int write_woody(s_packer_ctx *ctx)
-{
-    int fd = open("woody", O_CREAT | O_WRONLY | O_TRUNC, 0777);
-    if (fd < 0)
-        return (-1);
+Elf64_Phdr *find_entry_segment(Elf64_Phdr *program_header, size_t count);
 
-    write(fd, ctx->filemap, ctx->filesize);
-    close(fd);
+int handle_elf64(s_packer_ctx *ctx)
+{
+    Elf64_Ehdr *elf_header;
+    size_t     elf_original_entry;
+    Elf64_Phdr *program_header;
+    Elf64_Phdr *entry_segment_ptr;
+
+    elf_header = (Elf64_Ehdr *)ctx->filemap;
+    program_header = (Elf64_Phdr *)(ctx->filemap + elf_header->e_phoff);
+
+    elf_original_entry = elf_header->e_entry;
+    entry_segment_ptr = find_entry_segment(program_header, elf_header->e_phnum, elf_original_entry);
+    if (!entry_segment_ptr) {
+        return (1);
+    }
+
+    elf_original_entry = elf_header->e_entry;
+
+    //unsigned int size = 0x1000;
+    //unsigned int offset = phdr[i].p_offset + phdr[i].p_filesz;
+
+    ///* 3. alloc nouveau fichier */
+    //void *new_file = malloc(ctx->filesize + size);
+    //if (!new_file)
+    //    return (-1);
+
+    ///* 4. copier avant cave */
+    //memcpy(new_file, ctx->filemap, offset);
+
+    ///* 5. zero cave */
+    //memset((char *)new_file + offset, 0, size);
+
+    ///* 6. copier reste */
+    //memcpy((char *)new_file + offset + size,
+    //       ctx->filemap + offset,
+    //       ctx->filesize - offset);
+
+    ///* ⚠️ RELOAD HEADERS SUR NEW FILE */
+    //elf_header = (Elf64_Ehdr *)new_file;
+    //phdr = (Elf64_Phdr *)((char *)new_file + elf_header->e_phoff);
+    //Elf64_Shdr *shdr = (Elf64_Shdr *)((char *)new_file + elf_header->e_shoff);
+
+    ///* 7. FIX OFFSETS */
+
+    //for (int j = 0; j < elf_header->e_phnum; j++)
+    //    if (phdr[j].p_offset > offset)
+    //        phdr[j].p_offset += size;
+
+    //for (int j = 0; j < elf_header->e_shnum; j++)
+    //    if (shdr[j].sh_offset > offset)
+    //        shdr[j].sh_offset += size;
+
+    //if (elf_header->e_shoff > offset)
+    //    elf_header->e_shoff += size;
+
+    ///* 🔥 8. INJECTION PAYLOAD */
+
+    //Elf64_Off payload_offset = phdr[i].p_offset + phdr[i].p_filesz;
+
+    //memcpy((char *)new_file + payload_offset, payload, PAYLOAD_SIZE);
+
+    ///* 🔥 9. REDIRECTION ENTRYPOINT */
+
+    //elf_header->e_entry = phdr[i].p_vaddr + phdr[i].p_filesz;
+
+    ///* 🔥 10. AGRANDIR SEGMENT */
+
+    //phdr[i].p_filesz += PAYLOAD_SIZE;
+    //phdr[i].p_memsz += PAYLOAD_SIZE;
+
+    ///* 11. update ctx */
+    //ctx->filemap = new_file;
+    //ctx->filesize += size;
+    //printf("size = %ld\n", phdr[i].p_filesz);
 
     return (0);
 }
 
-int handle_elf64(s_packer_ctx *ctx)
+Elf64_Phdr *find_entry_segment(Elf64_Phdr *program_header, size_t count, size_t entry)
 {
-    Elf64_Ehdr *elf_header = (Elf64_Ehdr *)ctx->filemap;
-    Elf64_Phdr *phdr = (Elf64_Phdr *)(ctx->filemap + elf_header->e_phoff);
+    for (size_t i = 0; i < count; i++) {
+        if (phdr[i].p_type != PT_LOAD)
+            continue;
 
-    int i;
-
-    uint64_t original_entry = elf_header->e_entry;
-    printf("original entry = %ld\n", original_entry);
-    /* 1. trouver segment executable */
-    for (i = 0; i < elf_header->e_phnum; i++) {
-        if (phdr[i].p_type == PT_LOAD && (phdr[i].p_flags & PF_X))
-            break;
+        if (entry >= phdr[i].p_vaddr && entry < phdr[i].p_vaddr + phdr[i].p_memsz) {
+            return &phdr[i];
+        }
     }
-    printf("size = %ld\n", phdr[i].p_filesz);
 
-    /* 2. calcul offset de la cave */
-    unsigned int size = 0x1000;
-    unsigned int offset = phdr[i].p_offset + phdr[i].p_filesz;
-
-    /* 3. alloc nouveau fichier */
-    void *new_file = malloc(ctx->filesize + size);
-    if (!new_file)
-        return (-1);
-
-    /* 4. copier avant cave */
-    memcpy(new_file, ctx->filemap, offset);
-
-    /* 5. zero cave */
-    memset((char *)new_file + offset, 0, size);
-
-    /* 6. copier reste */
-    memcpy((char *)new_file + offset + size,
-           ctx->filemap + offset,
-           ctx->filesize - offset);
-
-    /* ⚠️ RELOAD HEADERS SUR NEW FILE */
-    elf_header = (Elf64_Ehdr *)new_file;
-    phdr = (Elf64_Phdr *)((char *)new_file + elf_header->e_phoff);
-    Elf64_Shdr *shdr = (Elf64_Shdr *)((char *)new_file + elf_header->e_shoff);
-
-    /* 7. FIX OFFSETS */
-
-    for (int j = 0; j < elf_header->e_phnum; j++)
-        if (phdr[j].p_offset > offset)
-            phdr[j].p_offset += size;
-
-    for (int j = 0; j < elf_header->e_shnum; j++)
-        if (shdr[j].sh_offset > offset)
-            shdr[j].sh_offset += size;
-
-    if (elf_header->e_shoff > offset)
-        elf_header->e_shoff += size;
-
-    /* 🔥 8. INJECTION PAYLOAD */
-
-    Elf64_Off payload_offset = phdr[i].p_offset + phdr[i].p_filesz;
-
-    memcpy((char *)new_file + payload_offset, payload, PAYLOAD_SIZE);
-
-    /* 🔥 9. REDIRECTION ENTRYPOINT */
-
-    elf_header->e_entry = phdr[i].p_vaddr + phdr[i].p_filesz;
-
-    /* 🔥 10. AGRANDIR SEGMENT */
-
-    phdr[i].p_filesz += PAYLOAD_SIZE;
-    phdr[i].p_memsz += PAYLOAD_SIZE;
-
-    /* 11. update ctx */
-    ctx->filemap = new_file;
-    ctx->filesize += size;
-    printf("size = %ld\n", phdr[i].p_filesz);
-
-    return (0);
+    return (NULL);
 }

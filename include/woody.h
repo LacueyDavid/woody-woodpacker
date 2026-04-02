@@ -1,5 +1,5 @@
-#ifndef PACKER_H
-#define PACKER_H
+#ifndef WOODY_H
+#define WOODY_H
 
 /* Includes */
 #include <sys/types.h>
@@ -27,6 +27,9 @@ void packer_ctx_cleanup(s_packer_ctx *ctx);
 
 /* elf/pack_elf.c */
 int pack_elf(s_packer_ctx *ctx);
+
+/* woody/create_woody.c */
+int create_woody(s_packer_ctx *ctx);
 
 /* packer.c */
 int packer(s_packer_ctx *ctx);
